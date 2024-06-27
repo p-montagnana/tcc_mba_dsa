@@ -1,0 +1,202 @@
+---
+title: "ANEXO A"
+author: "Paula Montagnana"
+date: "2024-06-05"
+output: word_document
+---
+### Autora: Paula Montagnana
+### TCC MBA Data Science e Analytics
+### Manipulação de arquivos de imagem e vetores; Análise espacial
+
+### pacotes
+```{r eval=FALSE, include=TRUE}
+library(raster)
+library(sf)
+library(stars)
+```
+
+### raster mapbiomas -------------------------------------------------------------
+
+### Carregar o arquivo raster
+```{r eval=FALSE, include=TRUE}
+mapbiomas <- terra::rast("C:/_Analises_TCC/shapefile/mapbiomas-brazil-collection-80-saopaulo-2022.tif")
+mapbiomas
+```
+
+### Transformar em mapa binário (0 ou 1) de vegetação nativa ---
+
+### Definir os valores que devem ser reclassificados como 1
+```{r eval=FALSE, include=TRUE}
+valores_1 <- c(1, 3, 4, 5, 6, 49, 10, 11, 12, 32, 50, 13)
+```
+
+### Reclassificar o raster conforme a matriz de reclassificação acima
+```{r eval=FALSE, include=TRUE}
+map_binario_veg <- mapbiomas %in% valores_1
+map_binario_veg
+```
+
+### Salvar o novo raster em um arquivo
+```{r eval=FALSE, include=TRUE}
+writeRaster(map_binario_veg, filename = "C:/_Analises_TCC/shapefile/mapbiomas_binario_veg.tif")
+
+```
+
+### Mapa binário da soja ---
+### Definir os valores que devem ser reclassificados como 1
+```{r eval=FALSE, include=TRUE}
+valores_2 <- c(39)
+```
+
+### Reclassificar o raster conforme a matriz de reclassificação
+```{r eval=FALSE, include=TRUE}
+map_binario_soja <- mapbiomas %in% valores_2
+map_binario_soja
+```
+
+### Salvar o novo raster em um arquivo
+```{r eval=FALSE, include=TRUE}
+writeRaster(map_binario_soja, filename = "C:/_Analises_TCC/shapefile/mapbiomas_binario_soja.tif")
+```
+
+### Raster de vegetação
+### Importar o arquivo raster
+```{r eval=FALSE, include=TRUE}
+raster_veg <- raster("C:/_Analises_TCC/raster/mapbiomas_binario_veg.tif")
+raster_veg
+```
+
+### Converter o raster em um objeto stars
+```{r eval=FALSE, include=TRUE}
+stars_veg <- st_as_stars(raster_veg)
+```
+
+### Converter o objeto stars em um objeto sf (shapefile)
+```{r eval=FALSE, include=TRUE}
+sf_veg <- st_as_sf(stars_veg, as_points = FALSE, merge = TRUE, connect8 = TRUE)
+```
+
+### Salvar o objeto sf como um arquivo shapefile
+```{r eval=FALSE, include=TRUE}
+st_write(sf_veg, "C:/_Analises_TCC/shapefile/mapbiomas_binario_veg.shp")
+```
+
+### Raster de soja
+### Importar o arquivo raster
+```{r eval=FALSE, include=TRUE}
+raster_soja <- raster("C:/_Analises_TCC/raster/mapbiomas_binario_soja.tif")
+raster_soja
+```
+
+### Converter o raster em um objeto stars
+```{r eval=FALSE, include=TRUE}
+stars_soja <- st_as_stars(raster_soja)
+```
+
+### Converter o objeto stars em um objeto sf
+```{r eval=FALSE, include=TRUE}
+sf_soja <- st_as_sf(stars_soja, as_points = FALSE, merge = TRUE, connect8 = TRUE)
+```
+
+### Salvar o objeto sf como um arquivo shapefile
+```{r eval=FALSE, include=TRUE}
+st_write(sf_soja, "C:/_Analises_TCC/shapefile/mapbiomas_binario_soja.shp")
+```
+
+### Construção de buffer ao redor das áreas de vegetação
+### 1. Importar o shapefile de vegetação
+```{r eval=FALSE, include=TRUE}
+veg <- st_read("C:/_Analises_TCC/shapefile/mapbiomas_binario_veg.shp")
+```
+
+### 2. Filtrar os polígonos com classificação 1
+```{r eval=FALSE, include=TRUE}
+poligonos_classe_1 <- veg[veg$cl_2022 == 1, ]
+```
+
+### 3. Limpar a geometria dos polígonos (porque antes da limpeza o código deu erro no momento de criar os buffers;  Pode ser que alguns polígonos estejam malformados ou possuam vértices duplicados, o que causa erro durante a operação de bufferização)
+```{r eval=FALSE, include=TRUE}
+poligonos_classe_1_validos <- st_make_valid(poligonos_classe_1)
+```
+
+### 4. Criar buffers de 668 metros ao redor dos polígonos de vegetação nativa
+```{r eval=FALSE, include=TRUE}
+buffers <- st_buffer(poligonos_classe_1_validos, dist = 668)
+```
+
+### 5. Salvar os buffers como um novo shapefile
+```{r eval=FALSE, include=TRUE}
+st_write(buffers, "C:/_Analises_TCC/shapefile/buffers_veg.shp")
+```
+
+### Corrigir geometrias inválidas dos shapefiles de soja e de buffers, combinar os buffers sobrepostos em um único
+### Carregar os shapefiles
+```{r eval=FALSE, include=TRUE}
+soja <- st_read("C:/_Analises_TCC/shapefile/mapbiomas_binario_soja.shp")
+buffers <- st_read("C:/_Analises_TCC/shapefile/buffers_veg.shp")
+```
+
+### Filtrar os polígonos da classe 1 do shapefile 'soja'
+```{r eval=FALSE, include=TRUE}
+soja_classe_1 <- soja[soja$cl_2022 == 1, ]
+```
+
+### Unir os buffers que se sobrepõem
+```{r eval=FALSE, include=TRUE}
+buffers_unidos <- st_union(buffers)
+```
+
+### Verificar e corrigir geometrias inválidas
+```{r eval=FALSE, include=TRUE}
+soja_classe_1_valido <- st_make_valid(soja_classe_1)
+```
+
+### Agora, para os buffers
+```{r eval=FALSE, include=TRUE}
+buffers_combinados_unidos <- st_make_valid(buffers_unidos)
+```
+
+### Salvar os shapefile corrigidos, sem geometrias inválidas
+```{r eval=FALSE, include=TRUE}
+st_write(soja_classe_1_valido, "C:/Users/paula/OneDrive/_______MBA_ESALQ/TCC/_Analises_TCC/shapefile/soja_binario_corrigido.shp")
+st_write(buffers_combinados_unidos, "C:/Users/paula/OneDrive/_______MBA_ESALQ/TCC/_Analises_TCC/shapefile/buffer_combinados_unidos.shp")
+```
+
+### Carregar o shapefile dos buffers unidos sem sobreposições e da soja sem geometrias inválidas
+```{r eval=FALSE, include=TRUE}
+buffers_unidos <- st_read("C:/Users/paula/OneDrive/_______MBA_ESALQ/TCC/_Analises_TCC/shapefile/buffers_combinados_unidos.shp")
+soja_valido <- st_read("C:/Users/paula/OneDrive/_______MBA_ESALQ/TCC/_Analises_TCC/shapefile/soja_binario_corrigido.shp")
+```
+
+### Para definir o CRS de 'buffers_unidos':
+### Verificar o CRS de soja_valido
+```{r eval=FALSE, include=TRUE}
+crs_soja <- st_crs(soja_valido)
+```
+
+### Se 'buffers_unidos' não tiver CRS definido, definir para o mesmo CRS de soja_valido
+```{r eval=FALSE, include=TRUE}
+if (is.na(st_crs(buffers_combinados_unidos))) {
+  st_crs(buffers_combinados_unidos) <- crs_soja
+}
+```
+
+### Agora ambos 'soja_valido' e 'buffers_unidos' terão o mesmo CRS
+### Realizar a operação de recorte (clip) utilizando a função 'st_intersection()'
+```{r eval=FALSE, include=TRUE}
+soja_recortada <- st_intersection(soja_valido, buffers_combinados_unidos)
+```
+
+### Filtrando apenas geometrias POLYGON e MULTIPOLYGON
+```{r eval=FALSE, include=TRUE}
+soja_recortada_polygons <- soja_recortada[st_geometry_type(soja_recortada) %in% c("POLYGON", "MULTIPOLYGON"), ]
+```
+
+### Salvar a área de soja recortada como um novo shapefile e os buffers sem sobreposição
+```{r eval=FALSE, include=TRUE}
+st_write(soja_recortada_polygons, "C:/Users/paula/OneDrive/_______MBA_ESALQ/TCC/_Analises_TCC/shapefile/soja_recortada.shp")
+st_write(buffers_combinados_unidos, "C:/Users/paula/OneDrive/_______MBA_ESALQ/TCC/_Analises_TCC/shapefile/buffers_combinados_unidos.shp")
+```
+
+# # FIM
+
